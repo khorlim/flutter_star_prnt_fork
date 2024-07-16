@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_star_prnt/src/enums.dart';
+import 'package:flutter_star_prnt_fork/flutter_star_prnt.dart';
 
 /// Class to hold print commands and functions to add commands to it
 class PrintCommands {
@@ -202,7 +202,7 @@ class PrintCommands {
         child: repaintBoundary,
       ),
       configuration: ViewConfiguration(
-        size: logicalSize,
+        // size: logicalSize,
         devicePixelRatio: 1.0,
       ),
     );
