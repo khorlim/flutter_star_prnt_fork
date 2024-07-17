@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
-import 'package:flutter_star_prnt_fork/flutter_star_prnt.dart';
+import 'package:flutter_star_prnt/flutter_star_prnt.dart';
 import 'printer_response_status.dart';
 
 /// Class to handle printer communication

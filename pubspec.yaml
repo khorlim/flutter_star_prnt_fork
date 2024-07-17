@@ -1,4 +1,4 @@
-name: flutter_star_prnt_fork
+name: flutter_star_prnt
 description: Flutter plugin for using Star Micromics printers. Contains multiple functions to help format the receipt.
 version: 2.4.1
 homepage: https://github.com/khorlim/flutter_star_prnt_fork.git
