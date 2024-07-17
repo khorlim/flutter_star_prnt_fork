@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
 
-import 'package:flutter_star_prnt_fork/flutter_star_prnt.dart';
+import 'package:flutter_star_prnt/flutter_star_prnt.dart';
 
 void main() => runApp(MyApp());
 
