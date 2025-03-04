@@ -31,6 +31,7 @@ import java.nio.charset.Charset
 import java.nio.charset.UnsupportedCharsetException
 import android.webkit.URLUtil
 
+@Suppress("DEPRECATION")
 /** FlutterStarPrntPlugin */
 public class FlutterStarPrntPlugin : FlutterPlugin, MethodCallHandler {
   protected var starIoExtManager: StarIoExtManager? = null
