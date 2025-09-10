@@ -100,6 +100,9 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
         let starEmulation :StarIoExtEmulation = getEmulation(emulation)
         let builder:ISCBBuilder = StarIoExt.createCommandBuilder(starEmulation)
         builder.beginDocument()
+        // Initialize to consistent state (to match printer self-test)
+        builder.appendFontStyle(SCBFontStyleType.A)
+        builder.appendCharacterSpace(0)  // Reset character spacing to default
         appendCommands(builder: builder, printCommands: printCommands)
         builder.endDocument()
         sendCommand(portName: portName, portSetting: portSettings, command: [UInt8](builder.commands.copy() as! Data),result: result)
@@ -277,8 +280,7 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
                     } catch {
                     }
                 }
-                if imageData != nil {
-                    let image = UIImage(data: imageData!)
+                if let imageData = imageData, let image = UIImage(data: imageData) {
                     if command["absolutePosition"] != nil {
                         let position = ((command["absolutePosition"] as? NSNumber)?.intValue ?? 0) != 0 ? (command["absolutePosition"] as? NSNumber)?.intValue ?? 0 : 40
                         builder.appendBitmap(withAbsolutePosition: image, diffusion: diffusion, width: width, bothScale: bothScale, rotation: rotation, position: position)
@@ -288,11 +290,13 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
                     } else {
                         builder.appendBitmap(image, diffusion: diffusion, width: width, bothScale: bothScale, rotation: rotation)
                     }
+                } else {
+                    print("FlutterStarPrnt: Failed to load image from URL: \(urlString ?? "nil")")
                 }
             } else if (command["appendBitmapText"] != nil) {
                 let text:String = command["appendBitmapText"] as! String
                 let width = command["width"] != nil ? command["width"] as! Int : 576
-                let fontName = command["font"] != nil ? command["font"] as! String : "Menlo"
+                let fontName = command["font"] != nil ? command["font"] as! String : "Helvetica"
                 let fontSize = command["fontSize"] != nil ? command["fontSize"] as! Int : 12
                 let bothScale = command["bothScale"] != nil ? command["bothScale"] as! Bool : true
                 let rotation = SCBBitmapConverterRotation.normal;

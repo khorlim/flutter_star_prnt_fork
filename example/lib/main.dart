@@ -93,7 +93,14 @@ class _MyAppState extends State<MyApp> {
                         "Refunds and Exchanges\n" +
                         "Within 30 days with receipt\n" +
                         "And tags attached\n";
-                    commands.appendBitmapText(text: raster);
+                    // OLD WAY (bitmap text - small and pixelated):
+                    // commands.appendBitmapText(text: raster);
+
+                    // NEW IMPROVED WAY (native text - crisp and properly sized):
+                    commands.appendFontStyle(
+                        StarFontStyleType.A); // Use larger font
+                    commands.appendText(raster);
+
                     print(await StarPrnt.sendCommands(
                         portName: port.portName!,
                         emulation: emulationFor(port.modelName!),

@@ -17,6 +17,10 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.util.Log
 import android.webkit.URLUtil
+import java.io.IOException
+import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import com.starmicronics.stario.PortInfo
 import com.starmicronics.stario.StarIOPort
 import com.starmicronics.stario.StarPrinterStatus
@@ -178,6 +182,9 @@ class FlutterStarPrntPlugin : FlutterPlugin, MethodCallHandler {
         }
         val builder: ICommandBuilder = StarIoExt.createCommandBuilder(getEmulation(emulation))
         builder.beginDocument()
+        // Initialize to consistent state (to match printer self-test)
+        builder.appendFontStyle(ICommandBuilder.FontStyleType.A)
+        builder.appendCharacterSpace(0)  // Reset character spacing to default
         appendCommands(builder, printCommands, applicationContext)
         builder.endDocument()
         sendCommand(
@@ -389,11 +396,22 @@ class FlutterStarPrntPlugin : FlutterPlugin, MethodCallHandler {
                     else getConverterRotation("Normal")
                 try {
                     val bitmap: Bitmap?
-                    if (URLUtil.isValidUrl(it["appendBitmap"].toString())) {
-                        val imageUri: Uri = Uri.parse(it["appendBitmap"].toString())
-                        bitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
-                    } else {
-                        bitmap = BitmapFactory.decodeFile(it["appendBitmap"].toString())
+                    val imagePath = it["appendBitmap"].toString()
+                    
+                    bitmap = when {
+                        // Remote HTTP/HTTPS URL
+                        URLUtil.isValidUrl(imagePath) && (imagePath.startsWith("http://") || imagePath.startsWith("https://")) -> {
+                            downloadBitmapFromUrl(imagePath)
+                        }
+                        // Local content URI (e.g., content://)
+                        URLUtil.isValidUrl(imagePath) && imagePath.startsWith("content://") -> {
+                            val imageUri: Uri = Uri.parse(imagePath)
+                            MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
+                        }
+                        // Local file path
+                        else -> {
+                            BitmapFactory.decodeFile(imagePath)
+                        }
                     }
 
                     if (bitmap != null) {
@@ -420,15 +438,15 @@ class FlutterStarPrntPlugin : FlutterPlugin, MethodCallHandler {
                 }
             } else if (it.containsKey("appendBitmapText")) {
                 val fontSize: Float =
-                    if (it.containsKey("fontSize")) (it["fontSize"].toString()).toFloat()
-                    else 25.toFloat()
+                    if (it.containsKey("fontSize")) (it["fontSize"].toString()).toFloat() * 2
+                    else 24.toFloat() * 2 
                 val diffusion: Boolean =
                     if (it.containsKey("diffusion")) (it["diffusion"].toString()).toBoolean() else true
                 val width: Int = if (it.containsKey("width")) (it["width"].toString()).toInt() else 576
                 val bothScale: Boolean =
                     if (it.containsKey("bothScale")) (it["bothScale"].toString()).toBoolean() else true
                 val text: String = it["appendBitmapText"].toString()
-                val typeface: Typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
+                val typeface: Typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
                 val bitmap: Bitmap = createBitmapFromText(text, fontSize, width, typeface)
                 val rotation: ICommandBuilder.BitmapConverterRotation =
                     if (it.containsKey("rotation")) getConverterRotation(it["rotation"].toString())
@@ -660,6 +678,33 @@ class FlutterStarPrntPlugin : FlutterPlugin, MethodCallHandler {
             else -> ICommandBuilder.BitmapConverterRotation.Normal
         }
     }
+    private fun downloadBitmapFromUrl(url: String): Bitmap? {
+        return try {
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.connectTimeout = 10000
+            connection.readTimeout = 15000
+            connection.doInput = true
+            connection.connect()
+            
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                Log.e("FlutterStarPrnt", "HTTP error ${connection.responseCode} when downloading image from $url")
+                return null
+            }
+            
+            val input: InputStream = connection.inputStream
+            val bitmap = BitmapFactory.decodeStream(input)
+            input.close()
+            connection.disconnect()
+            bitmap
+        } catch (e: IOException) {
+            Log.e("FlutterStarPrnt", "Failed to download image from URL: $url", e)
+            null
+        } catch (e: Exception) {
+            Log.e("FlutterStarPrnt", "Unexpected error downloading image from URL: $url", e)
+            null
+        }
+    }
+
     private fun createBitmapFromText(
         printText: String,
         textSize: Float,

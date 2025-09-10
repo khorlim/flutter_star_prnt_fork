@@ -30,6 +30,68 @@ class PrintCommands {
     this._commands.add({"openCashDrawer": actionNumber});
   }
 
+  /// Prints regular text using native printer fonts (recommended for better quality)
+  /// This produces much better text quality than appendBitmapText
+  /// Use [StarFontStyleType] to control font size (A = larger, B = smaller)
+  appendText(String text, {StarFontStyleType? fontStyle}) {
+    if (fontStyle != null) {
+      this._commands.add({"appendFontStyle": fontStyle.text});
+    }
+    this._commands.add({"append": text});
+  }
+
+  /// Prints raw text data without processing
+  appendRawText(String text) {
+    this._commands.add({"appendRaw": text});
+  }
+
+  /// Sets font style for subsequent text printing
+  /// [StarFontStyleType.A] = Font-A (12 x 24 dots) - larger font
+  /// [StarFontStyleType.B] = Font-B (9 x 24 dots) - smaller font
+  appendFontStyle(StarFontStyleType fontStyle) {
+    this._commands.add({"appendFontStyle": fontStyle.text});
+  }
+
+  /// Prints text with emphasis (bold)
+  appendEmphasisText(String text) {
+    this._commands.add({"appendEmphasis": text});
+  }
+
+  /// Prints inverted text (white on black background)
+  appendInvertText(String text) {
+    this._commands.add({"appendInvert": text});
+  }
+
+  /// Prints underlined text
+  appendUnderlineText(String text) {
+    this._commands.add({"appendUnderline": text});
+  }
+
+  /// Prints text with specified alignment
+  appendTextWithAlignment(String text, StarAlignmentPosition alignment) {
+    this._commands.add({"appendAlignment": alignment.text, "data": text});
+  }
+
+  /// Prints text at absolute position
+  appendTextWithAbsolutePosition(String text, int position) {
+    this._commands.add({"appendAbsolutePosition": position, "data": text});
+  }
+
+  /// Adds line feed(s)
+  appendLineFeed([int lines = 1]) {
+    this._commands.add({"appendLineFeed": lines});
+  }
+
+  /// Adds line spacing
+  appendLineSpace(int spacing) {
+    this._commands.add({"appendLineSpace": spacing});
+  }
+
+  /// Adds character spacing
+  appendCharacterSpace(int spacing) {
+    this._commands.add({"appendCharacterSpace": spacing});
+  }
+
   /// Prints an image with a url or a file [path].
   /// Set [bothScale] to scale the image by the [width] of receipt.
   /// Sets [absolutePosition] image absolute position.

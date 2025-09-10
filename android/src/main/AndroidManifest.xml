@@ -1,3 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
   package="io.eddayy.flutter_star_prnt">
+  
+  <!-- Permission needed for downloading images from remote URLs -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  
 </manifest>
