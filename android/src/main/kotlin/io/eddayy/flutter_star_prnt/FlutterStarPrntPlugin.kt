@@ -182,9 +182,7 @@ class FlutterStarPrntPlugin : FlutterPlugin, MethodCallHandler {
         }
         val builder: ICommandBuilder = StarIoExt.createCommandBuilder(getEmulation(emulation))
         builder.beginDocument()
-        // Initialize to consistent state (to match printer self-test)
-        builder.appendFontStyle(ICommandBuilder.FontStyleType.A)
-        builder.appendCharacterSpace(0)  // Reset character spacing to default
+      
         appendCommands(builder, printCommands, applicationContext)
         builder.endDocument()
         sendCommand(
@@ -446,7 +444,7 @@ class FlutterStarPrntPlugin : FlutterPlugin, MethodCallHandler {
                 val bothScale: Boolean =
                     if (it.containsKey("bothScale")) (it["bothScale"].toString()).toBoolean() else true
                 val text: String = it["appendBitmapText"].toString()
-                val typeface: Typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+                val typeface: Typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
                 val bitmap: Bitmap = createBitmapFromText(text, fontSize, width, typeface)
                 val rotation: ICommandBuilder.BitmapConverterRotation =
                     if (it.containsKey("rotation")) getConverterRotation(it["rotation"].toString())

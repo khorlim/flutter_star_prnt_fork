@@ -100,9 +100,7 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
         let starEmulation :StarIoExtEmulation = getEmulation(emulation)
         let builder:ISCBBuilder = StarIoExt.createCommandBuilder(starEmulation)
         builder.beginDocument()
-        // Initialize to consistent state (to match printer self-test)
-        builder.appendFontStyle(SCBFontStyleType.A)
-        builder.appendCharacterSpace(0)  // Reset character spacing to default
+       
         appendCommands(builder: builder, printCommands: printCommands)
         builder.endDocument()
         sendCommand(portName: portName, portSetting: portSettings, command: [UInt8](builder.commands.copy() as! Data),result: result)
@@ -296,7 +294,7 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
             } else if (command["appendBitmapText"] != nil) {
                 let text:String = command["appendBitmapText"] as! String
                 let width = command["width"] != nil ? command["width"] as! Int : 576
-                let fontName = command["font"] != nil ? command["font"] as! String : "Helvetica"
+                let fontName = command["font"] != nil ? command["font"] as! String : "Menlo"
                 let fontSize = command["fontSize"] != nil ? command["fontSize"] as! Int : 12
                 let bothScale = command["bothScale"] != nil ? command["bothScale"] as! Bool : true
                 let rotation = SCBBitmapConverterRotation.normal;
