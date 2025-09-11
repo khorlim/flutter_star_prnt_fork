@@ -13,18 +13,19 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch (call.method) {
             case "portDiscovery":
-                portDiscovery(call, result: result)
+                portDiscoveryAsync(call, result: result)
                 break;
             case "checkStatus":
-                checkStatus(call, result: result)
+                checkStatusAsync(call, result: result)
                 break;
             case "print":
-                print(call, result: result)
+                printAsync(call, result: result)
             default:
                 result(FlutterMethodNotImplemented)
       }
     }
     
+    // DEPRECATED: Use portDiscoveryAsync instead
     public func portDiscovery(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         let arguments = call.arguments as! Dictionary<String, AnyObject>
         let type = arguments["type"] as! String
@@ -55,7 +56,94 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
             )
         }
     }
+    
+    // OPTIMIZED: Async version that runs on background queue
+    public func portDiscoveryAsync(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let arguments = call.arguments as! Dictionary<String, AnyObject>
+            let type = arguments["type"] as! String
+            
+            do {
+                var info = [Dictionary<String,String>]()
+                let group = DispatchGroup()
+                var errors: [Error] = []
+                
+                // Run all discovery operations concurrently
+                if ( type == "Bluetooth" || type == "All") {
+                    group.enter()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        do {
+                            let btPortInfoArray = try SMPort.searchPrinter(target: "BT:")
+                            DispatchQueue.main.sync {
+                                for printer in btPortInfoArray {
+                                    info.append(self.portInfoToDictionary(portInfo: printer as! PortInfo))
+                                }
+                            }
+                        } catch {
+                            errors.append(error)
+                        }
+                        group.leave()
+                    }
+                }
+                
+                if ( type == "LAN" || type == "All") {
+                    group.enter()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        do {
+                            let lanPortInfoArray = try SMPort.searchPrinter(target: "TCP:")
+                            DispatchQueue.main.sync {
+                                for printer in lanPortInfoArray {
+                                    info.append(self.portInfoToDictionary(portInfo: printer as! PortInfo))
+                                }
+                            }
+                        } catch {
+                            errors.append(error)
+                        }
+                        group.leave()
+                    }
+                }
+                
+                if ( type == "USB" || type == "All") {
+                    group.enter()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        do {
+                            let usbPortInfoArray = try SMPort.searchPrinter(target: "USB:")
+                            DispatchQueue.main.sync {
+                                for printer in usbPortInfoArray {
+                                    info.append(self.portInfoToDictionary(portInfo: printer as! PortInfo))
+                                }
+                            }
+                        } catch {
+                            errors.append(error)
+                        }
+                        group.leave()
+                    }
+                }
+                
+                // Wait for all discovery operations to complete
+                group.wait()
+                
+                DispatchQueue.main.async {
+                    if !errors.isEmpty {
+                        result(
+                            FlutterError.init(code: "PORT_DISCOVERY_ERROR", message: errors.first?.localizedDescription ?? "Unknown error", details: nil)
+                        )
+                    } else {
+                        result(info)
+                    }
+                }
+                
+            } catch {
+                DispatchQueue.main.async {
+                    result(
+                        FlutterError.init(code: "PORT_DISCOVERY_ERROR", message: error.localizedDescription, details: nil)
+                    )
+                }
+            }
+        }
+    }
 
+    // DEPRECATED: Use checkStatusAsync instead
     public func checkStatus (_ call: FlutterMethodCall, result: @escaping FlutterResult){
         let arguments = call.arguments as! Dictionary<String, AnyObject>
         let portName = arguments["portName"] as! String
@@ -89,6 +177,53 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
         }
     }
     
+    // OPTIMIZED: Async version that runs on background queue
+    public func checkStatusAsync (_ call: FlutterMethodCall, result: @escaping FlutterResult){
+        DispatchQueue.global(qos: .userInitiated).async {
+            let arguments = call.arguments as! Dictionary<String, AnyObject>
+            let portName = arguments["portName"] as! String
+            let emulation = arguments["emulation"] as! String
+            var port:SMPort
+            var status: StarPrinterStatus_2 = StarPrinterStatus_2()
+            
+            do {
+                port = try SMPort.getPort(portName: portName, portSettings: self.getPortSettingsOption(emulation), ioTimeoutMillis: 10000)
+                defer {
+                    SMPort.release(port)
+                }
+                
+                // Replace blocking sleep with async delay for Bluetooth
+                if #available(iOS 11.0, *){
+                    if(portName.uppercased().hasPrefix("BT:")) {
+                        Thread.sleep(forTimeInterval: 0.2) // Only sleep on background thread
+                    }
+                }
+                
+                try port.getParsedStatus(starPrinterStatus: &status, level: 2)
+                var firmwareInformation: Dictionary =  [AnyHashable:Any]()
+                var errorMsg:String?
+                
+                do {
+                    firmwareInformation = try port.getFirmwareInformation()
+                } catch {
+                    errorMsg = error.localizedDescription
+                }
+                
+                DispatchQueue.main.async {
+                    result(self.portStatusToDictionary(status: status, firmwareInformation: firmwareInformation, errorMsg: errorMsg))
+                }
+                
+            } catch {
+                DispatchQueue.main.async {
+                    result(
+                         FlutterError.init(code: "CHECK_STATUS_ERROR", message: error.localizedDescription, details: nil)
+                     )
+                }
+            }
+        }
+    }
+    
+    // DEPRECATED: Use printAsync instead
     public func print(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         let arguments = call.arguments as! Dictionary<String, AnyObject>
         let portName = arguments["portName"] as! String
@@ -105,6 +240,25 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
         builder.endDocument()
         sendCommand(portName: portName, portSetting: portSettings, command: [UInt8](builder.commands.copy() as! Data),result: result)
         
+    }
+    
+    // OPTIMIZED: Async version that runs on background queue
+    public func printAsync(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let arguments = call.arguments as! Dictionary<String, AnyObject>
+            let portName = arguments["portName"] as! String
+            let emulation = arguments["emulation"] as! String
+            let printCommands = arguments["printCommands"] as! Array<Dictionary<String,Any>>
+
+            let portSettings :String = self.getPortSettingsOption(emulation)
+            let starEmulation :StarIoExtEmulation = self.getEmulation(emulation)
+            let builder:ISCBBuilder = StarIoExt.createCommandBuilder(starEmulation)
+            builder.beginDocument()
+           
+            self.appendCommands(builder: builder, printCommands: printCommands)
+            builder.endDocument()
+            self.sendCommandAsync(portName: portName, portSetting: portSettings, command: [UInt8](builder.commands.copy() as! Data), result: result)
+        }
     }
     
     func portInfoToDictionary(portInfo: PortInfo) -> Dictionary<String,String>{
@@ -267,6 +421,8 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
                 let error: Error? = nil
                 let imageURL = URL(string: urlString ?? "")
                 var imageData: Data? = nil
+                
+                // Load image data synchronously since we're already on background thread
                 do {
                     if let imageURL = imageURL {
                         imageData = try Data(contentsOf: imageURL, options: .uncached)
@@ -276,6 +432,7 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
                     do {
                         imageData = try Data(contentsOf: fileImageURL)
                     } catch {
+                        Swift.print("FlutterStarPrnt: Failed to load image from both URL and file path: \(urlString ?? "nil")")
                     }
                 }
                 if let imageData = imageData, let image = UIImage(data: imageData) {
@@ -289,12 +446,12 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
                         builder.appendBitmap(image, diffusion: diffusion, width: width, bothScale: bothScale, rotation: rotation)
                     }
                 } else {
-                    print("FlutterStarPrnt: Failed to load image from URL: \(urlString ?? "nil")")
+                    Swift.print("FlutterStarPrnt: Failed to load image from URL: \(urlString ?? "nil")")
                 }
             } else if (command["appendBitmapText"] != nil) {
                 let text:String = command["appendBitmapText"] as! String
                 let width = command["width"] != nil ? command["width"] as! Int : 576
-                let fontName = command["font"] != nil ? command["font"] as! String : "Menlo"
+                let fontName = command["font"] != nil ? command["font"] as! String : "Courier"
                 let fontSize = command["fontSize"] != nil ? command["fontSize"] as! Int : 12
                 let bothScale = command["bothScale"] != nil ? command["bothScale"] as! Bool : true
                 let rotation = SCBBitmapConverterRotation.normal;
@@ -671,19 +828,12 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
     func imageWithString(string: String, font: UIFont, width: CGFloat) -> UIImage? {
         let size = string.boundingRect(
             with: CGSize(width: width, height: 10000),
-            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [NSAttributedString.Key.font : font] ,
             context: nil).size
 
-        if UIScreen.main.responds(to: #selector(getter: UIScreen.scale)) {
-            if UIScreen.main.scale == 2.0 {
-                UIGraphicsBeginImageContextWithOptions(size , false, 1.0)
-            } else {
-                UIGraphicsBeginImageContext(size )
-            }
-        } else {
-            UIGraphicsBeginImageContext(size )
-        }
+        // FIXED: Always use scale 1.0 for consistent text rendering across devices
+        UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
 
         let context = UIGraphicsGetCurrentContext()
         UIColor.white.set()
@@ -706,6 +856,7 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
 
         return imageToPrint
     }
+    // DEPRECATED: Use sendCommandAsync instead
     func sendCommand(portName:String,portSetting:String,command:[UInt8],result: FlutterResult){
         var port :SMPort
         var status: StarPrinterStatus_2 = StarPrinterStatus_2()
@@ -772,6 +923,82 @@ public class SwiftFlutterStarPrntPlugin: NSObject, FlutterPlugin {
             result(
               FlutterError.init(code: "STARIO_PRINT_EXCEPTION", message: error.localizedDescription, details: nil)
           )
+        }
+    }
+    
+    // OPTIMIZED: Async version that runs on background queue - already on background thread
+    func sendCommandAsync(portName:String,portSetting:String,command:[UInt8],result: @escaping FlutterResult){
+        var port :SMPort
+        var status: StarPrinterStatus_2 = StarPrinterStatus_2()
+
+        do {
+            port = try SMPort.getPort(portName: portName, portSettings: portSetting, ioTimeoutMillis: 10000)
+            let SM_TRUE =  SM_TRUESHARED
+            
+            var json = Dictionary<AnyHashable, Any>()
+            defer {
+                SMPort.release(port)
+            }
+            // Replace usleep with Thread.sleep since we're already on background thread
+            Thread.sleep(forTimeInterval: 0.2)
+            try port.beginCheckedBlock(starPrinterStatus: &status, level: 2)
+            json = portStatusToDictionary(status: status, firmwareInformation: [String:Any](),errorMsg: nil)
+            var isSucess = true
+             if (status.coverOpen == SM_TRUE) {
+              json["error_message"] = "Printer cover is open"
+              isSucess = false
+            } else if (status.receiptPaperEmpty == SM_TRUE) {
+              json["error_message"] = "Paper empty"
+              isSucess = false
+            }else if (status.presenterPaperJamError == SM_TRUE) {
+              json["error_message"] = "Paper Jam"
+              isSucess = false
+            }else if (status.offline == SM_TRUE) {
+              json["error_message"] = "A printer is offline"
+              isSucess = false
+            }
+
+            if (status.receiptPaperNearEmptyInner == SM_TRUE || status.receiptPaperNearEmptyOuter == SM_TRUE){
+              json["info_message"] = "Paper near empty"
+            }
+            if isSucess {
+                var total: UInt32 = 0
+                while total < UInt32(command.count) {
+                    var written: UInt32 = 0
+                    try port.write(writeBuffer: command, offset: total, size: UInt32(command.count) - total, numberOfBytesWritten: &written)
+                    total += written
+                }
+                try port.endCheckedBlock(starPrinterStatus: &status, level: 2)
+                let newStat = portStatusToDictionary(status: status, firmwareInformation: [String:Any](),errorMsg: nil)
+                
+                json.merge(newStat) {  (current, _) in current}
+                if (status.coverOpen == SM_TRUE) {
+                  json["error_message"] = "Printer cover is open"
+                } else if (status.receiptPaperEmpty == SM_TRUE) {
+                  json["error_message"] = "Paper empty"
+                }else if (status.presenterPaperJamError == SM_TRUE) {
+                  json["error_message"] = "Paper Jam"
+                }else if (status.offline == SM_TRUE) {
+                  json["error_message"] = "A printer is offline"
+                  isSucess = false
+                }
+            }
+        
+            if (status.receiptPaperNearEmptyInner == SM_TRUE || status.receiptPaperNearEmptyOuter == SM_TRUE){
+              json["error_message"] = "Paper near empty"
+            }
+            json["is_success"] = isSucess
+            
+            DispatchQueue.main.async {
+                result(json)
+            }
+
+        } catch {
+            DispatchQueue.main.async {
+                result(
+                  FlutterError.init(code: "STARIO_PRINT_EXCEPTION", message: error.localizedDescription, details: nil)
+              )
+            }
         }
     }
 
