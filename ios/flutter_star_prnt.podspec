@@ -21,8 +21,17 @@ Pod::Spec.new do |s|
   s.preserve_paths = 'Frameworks/*.framework'
   s.vendored_frameworks = 'Frameworks/*.framework'
   # Flutter.framework does not contain a i386 slice. Only x86_64 simulators are supported.
-  s.pod_target_xcconfig = { 
-    'DEFINES_MODULE' => 'NO', 
+  # StarIO/StarIO_Extension are fat device frameworks whose arm64 slice is
+  # device-only; arm64 simulators cannot link them. Excluding arm64 for
+  # simulator SDKs makes simulator builds use the x86_64 slice (Rosetta on
+  # Apple Silicon), so the app runs on simulators with printing unavailable
+  # at runtime instead of failing to build.
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'NO',
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'arm64',
+  }
+  s.user_target_xcconfig = {
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'arm64',
   }
   s.xcconfig = { "OTHER_LDFLAGS" => '$(inherited) -framework "ExternalAccessory" -framework "CoreBluetooth" -framework "StarIO" -framework "StarIO_Extension"' }
   s.swift_version = '5.0'
